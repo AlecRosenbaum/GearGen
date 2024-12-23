@@ -9,7 +9,7 @@ online][compiled]
 You can build the example locally with:
 
 ```
-$ npm run serve
+$ npm run serve --host=0.0.0.0 --port=8080
 ```
 
 and then visiting http://localhost:8080 in a browser should run the example!
