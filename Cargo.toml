@@ -1,9 +1,11 @@
 [package]
-authors = ["The wasm-bindgen Developers"]
+authors = ["Alec Rosenbaum"]
 edition = "2021"
 name = "canvas"
+description = "A canvas for drawing gears"
 publish = false
 version = "0.0.0"
+license = "MIT"
 
 [lib]
 crate-type = ["cdylib"]
@@ -14,5 +16,5 @@ wasm-bindgen = "0.2"
 
 
 [dependencies.web-sys]
-features = ["CanvasRenderingContext2d", "Document", "Element", "HtmlCanvasElement", "Window"]
+features = ["CanvasRenderingContext2d", "Document", "Element", "HtmlCanvasElement", "Window", "console"]
 version = "0.3.76"
