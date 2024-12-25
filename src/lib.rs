@@ -73,9 +73,30 @@ struct GearSpecs {
     backlash_mult: f64,
 }
 
+// debug config struct
+struct DebugConfig {
+    show_base_circle: bool,
+    show_inner_circle: bool,
+    show_outer_circle: bool,
+    show_pitch_circle: bool,
+}
+
+impl DebugConfig {
+    fn default() -> Self {
+        Self {
+            show_base_circle: false,
+            show_inner_circle: false,
+            show_outer_circle: false,
+            show_pitch_circle: false,
+        }
+    }
+}
+
 fn redraw(context: &web_sys::CanvasRenderingContext2d, width: u32, height: u32) {
     context.clear_rect(0.0, 0.0, width as f64, height as f64);
     draw_background(context, width, height);
+
+    let debug_config = DebugConfig::default();
 
     // Draw left gear (circle for now)
     let gear_1_spec = GearSpecs {
@@ -85,7 +106,7 @@ fn redraw(context: &web_sys::CanvasRenderingContext2d, width: u32, height: u32) 
         clearance_mult: 0.167,
         backlash_mult: 0.05,
     };
-    draw_gear(context, Gear::Left, gear_1_spec);
+    draw_gear(context, Gear::Left, gear_1_spec, &debug_config);
 
     // Draw right gear (circle for now)
     let gear_2_spec = GearSpecs {
@@ -95,11 +116,11 @@ fn redraw(context: &web_sys::CanvasRenderingContext2d, width: u32, height: u32) 
         clearance_mult: 0.167,
         backlash_mult: 0.05,
     };
-    draw_gear(context, Gear::Right, gear_2_spec);
+    draw_gear(context, Gear::Right, gear_2_spec, &debug_config);
 }
 
 
-fn draw_gear(context: &web_sys::CanvasRenderingContext2d, left_or_right: Gear, gear_spec: GearSpecs) {
+fn draw_gear(context: &web_sys::CanvasRenderingContext2d, left_or_right: Gear, gear_spec: GearSpecs, debug_config: &DebugConfig) {
     // Gear specifications
     let teeth = gear_spec.teeth;
     let module = gear_spec.module;
@@ -118,23 +139,28 @@ fn draw_gear(context: &web_sys::CanvasRenderingContext2d, left_or_right: Gear, g
     let outer_radius = outer_diameter / 2.0;
     let pitch_radius = pitch_diameter / 2.0;
 
-    let x = if left_or_right == Gear::Left { -pitch_radius } else { pitch_radius };
-    let offset = Point { x: x, y: 0.0 };
-    // // draw base circle
-    // context.set_stroke_style_str("lightblue");
-    // draw_circle(context, x, 0.0, base_radius);
+    let offset = Point {
+        x: if left_or_right == Gear::Left { -pitch_radius } else { pitch_radius }, 
+        y: 0.0 
+    };
 
-    // // draw inner circle
-    // context.set_stroke_style_str("purple");
-    // draw_circle(context, x, 0.0, root_radius);
-
-    // // draw outer circle
-    // context.set_stroke_style_str("lightgreen");
-    // draw_circle(context, x, 0.0, outer_radius);
-
-    // // draw pitch circle
-    // context.set_stroke_style_str("red");
-    // draw_circle(context, x, 0.0, pitch_radius);
+    // maybe draw debug circles
+    if debug_config.show_base_circle {
+        context.set_stroke_style_str("lightblue");
+        draw_circle(context, offset.x, 0.0, base_radius);
+    }
+    if debug_config.show_inner_circle {
+        context.set_stroke_style_str("purple");
+        draw_circle(context, offset.x, 0.0, root_radius);
+    }
+    if debug_config.show_outer_circle {
+        context.set_stroke_style_str("lightgreen");
+        draw_circle(context, offset.x, 0.0, outer_radius);
+    }
+    if debug_config.show_pitch_circle {
+        context.set_stroke_style_str("red");
+        draw_circle(context, offset.x, 0.0, pitch_radius);
+    }
 
     // Functions for the involute curve generation
     fn involute(base_radius: f64, theta: f64) -> Point {
