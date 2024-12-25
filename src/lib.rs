@@ -46,32 +46,52 @@ enum Gear {
     Right,
 }
 
+// struct for gear specs
+struct GearSpecs {
+    teeth: f64,
+    module: f64,
+    tooth_angle: f64,
+    clearance_mult: f64,
+    backlash_mult: f64,
+}
+
 fn redraw(context: &web_sys::CanvasRenderingContext2d, width: u32, height: u32) {
     context.clear_rect(0.0, 0.0, width as f64, height as f64);
     draw_background(context, width, height);
 
-    let m = 15.0;
-    let pitch_angle = 20.0;
-
     // Draw left gear (circle for now)
-    draw_gear(context, Gear::Left, m, 50, pitch_angle);
+    let gear_1_spec = GearSpecs {
+        teeth: 50.0,
+        module: 15.0,
+        tooth_angle: 20.0,
+        clearance_mult: 0.167,
+        backlash_mult: 0.05,
+    };
+    draw_gear(context, Gear::Left, gear_1_spec);
 
     // Draw right gear (circle for now)
-    draw_gear(context, Gear::Right, m, 10, pitch_angle);
-
-    context.stroke();
+    let gear_2_spec = GearSpecs {
+        teeth: 10.0,
+        module: 15.0,
+        tooth_angle: 20.0,
+        clearance_mult: 0.167,
+        backlash_mult: 0.05,
+    };
+    draw_gear(context, Gear::Right, gear_2_spec);
 }
 
 
-fn draw_gear(context: &web_sys::CanvasRenderingContext2d, left_or_right: Gear, module: f64, teeth: u32, pressure_angle: f64) {
+fn draw_gear(context: &web_sys::CanvasRenderingContext2d, left_or_right: Gear, gear_spec: GearSpecs) {
     // Gear specifications
-    let teeth = teeth as f64;
-    let pressure_angle_rads = pressure_angle * f64::consts::PI / 180.0;
+    let teeth = gear_spec.teeth;
+    let module = gear_spec.module;
+    let tooth_angle = gear_spec.tooth_angle;
+    let pressure_angle_rads = tooth_angle * f64::consts::PI / 180.0;
     let pitch_diameter = teeth * module;
     let base_diameter = pitch_diameter * pressure_angle_rads.cos();
     let addendum = module;
-    let clearance = 0.167 * module;
-    let backlash_allowance = 0.05 * module;
+    let clearance = gear_spec.clearance_mult * module;
+    let backlash_allowance = gear_spec.backlash_mult * module;
     let dedendum = clearance + module;
     let root_diameter = pitch_diameter - 2.0 * dedendum;
     let outer_diameter = pitch_diameter + 2.0 * addendum;
