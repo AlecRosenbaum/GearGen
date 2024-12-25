@@ -46,6 +46,24 @@ enum Gear {
     Right,
 }
 
+// struct for points
+#[derive(Clone, Copy)]
+struct Point {
+    x: f64,
+    y: f64,
+}
+
+impl std::ops::Add for Point {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Point {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
 // struct for gear specs
 struct GearSpecs {
     teeth: f64,
@@ -101,6 +119,7 @@ fn draw_gear(context: &web_sys::CanvasRenderingContext2d, left_or_right: Gear, g
     let pitch_radius = pitch_diameter / 2.0;
 
     let x = if left_or_right == Gear::Left { -pitch_radius } else { pitch_radius };
+    let offset = Point { x: x, y: 0.0 };
     // // draw base circle
     // context.set_stroke_style_str("lightblue");
     // draw_circle(context, x, 0.0, base_radius);
@@ -118,10 +137,10 @@ fn draw_gear(context: &web_sys::CanvasRenderingContext2d, left_or_right: Gear, g
     // draw_circle(context, x, 0.0, pitch_radius);
 
     // Functions for the involute curve generation
-    fn involute(base_radius: f64, theta: f64) -> (f64, f64) {
+    fn involute(base_radius: f64, theta: f64) -> Point {
         let x = base_radius * (theta.cos() + theta * theta.sin());
         let y = base_radius * (theta.sin() - theta * theta.cos());
-        (x, y)
+        Point { x: x, y: y }
     }
 
     // Generate the involute gear profile
@@ -132,20 +151,19 @@ fn draw_gear(context: &web_sys::CanvasRenderingContext2d, left_or_right: Gear, g
     let theta: Vec<f64> = (0..involute_steps).map(|i| i as f64 * (theta_max - theta_min) / involute_steps as f64 + theta_min).collect();
 
     let theta_pitch = f64::sqrt((pitch_radius / base_radius).powi(2) - 1.0);  // Max theta for the involute
-    let mut pitch_correction = (involute(base_radius, theta_pitch).0 / pitch_radius).acos();
+    let mut pitch_correction = (involute(base_radius, theta_pitch).x / pitch_radius).acos();
     let clearance_correction = ((backlash_allowance / 2.0) / pitch_radius).asin();
     pitch_correction = pitch_correction - clearance_correction;
 
     // generate involute points
-    let involute_points: Vec<(f64, f64)> = theta.iter().map(|theta| involute(base_radius, *theta)).collect();
-    let involute_points_neg: Vec<(f64, f64)> = theta.iter().rev().map(|theta| involute(base_radius, -*theta)).collect();
+    let involute_points: Vec<Point> = theta.iter().map(|theta| involute(base_radius, *theta)).collect();
+    let involute_points_neg: Vec<Point> = theta.iter().rev().map(|theta| involute(base_radius, -*theta)).collect();
 
     // draw involute points
-    fn rotate_point(point: (f64, f64), angle: f64) -> (f64, f64) {
-        let (x, y) = point;
-        let x_rot = x * angle.cos() - y * angle.sin();
-        let y_rot = x * angle.sin() + y * angle.cos();
-        (x_rot, y_rot)
+    fn rotate_point(point: &Point, angle: f64) -> Point {
+        let x_rot = point.x * angle.cos() - point.y * angle.sin();
+        let y_rot = point.x * angle.sin() + point.y * angle.cos();
+        Point { x: x_rot, y: y_rot }
     }
 
     context.set_stroke_style_str("black");
@@ -156,24 +174,28 @@ fn draw_gear(context: &web_sys::CanvasRenderingContext2d, left_or_right: Gear, g
     (0..teeth as u32).for_each(|i| {
         let angle_offset_rads = i as f64 * tooth_angle;
 
-        let start_point = rotate_point((root_radius, 0.0), angle_offset_rads - pitch_correction);
-        context.move_to(x + start_point.0, start_point.1);
-        (&involute_points).clone().into_iter().skip(1).for_each(|(x_pt, y_pt)| {
-            let rotated_point = rotate_point((x_pt, y_pt), angle_offset_rads - pitch_correction);
-            context.line_to(x + rotated_point.0, rotated_point.1);
+        let start_point = offset + (
+            rotate_point(&Point { x: root_radius, y: 0.0 }, angle_offset_rads - pitch_correction)
+        );
+        context.move_to(start_point.x, start_point.y);
+        (&involute_points).clone().into_iter().skip(1).for_each(|pt| {
+            let rotated_point = rotate_point(&pt, angle_offset_rads - pitch_correction);
+            context.line_to(offset.x + rotated_point.x, rotated_point.y);
         });
         
-        let start_point_neg = rotate_point(involute_points_neg[0], angle_offset_rads + tooth_angle / 2.0 + pitch_correction);
-        context.line_to(x + start_point_neg.0, start_point_neg.1);
-        (&involute_points_neg).clone().into_iter().skip(1).for_each(|(x_pt, y_pt)| {
-            let rotated_point = rotate_point((x_pt, y_pt), angle_offset_rads + tooth_angle / 2.0 + pitch_correction);
-            context.line_to(x + rotated_point.0, rotated_point.1);
+        let start_point_neg = offset + (
+            rotate_point(&involute_points_neg[0], angle_offset_rads + tooth_angle / 2.0 + pitch_correction)
+        );
+        context.line_to(start_point_neg.x, start_point_neg.y);
+        (&involute_points_neg).clone().into_iter().skip(1).for_each(|pt| {
+            let rotated_point = rotate_point(&pt, angle_offset_rads + tooth_angle / 2.0 + pitch_correction);
+            context.line_to(offset.x + rotated_point.x, rotated_point.y);
         });
-        let end_involute_point = rotate_point((root_radius, 0.0), angle_offset_rads + tooth_angle / 2.0 + pitch_correction);
-        context.line_to(x + end_involute_point.0, end_involute_point.1);
+        let end_involute_point = rotate_point(&Point { x: root_radius, y: 0.0 }, angle_offset_rads + tooth_angle / 2.0 + pitch_correction);
+        context.line_to(offset.x + end_involute_point.x, end_involute_point.y);
         
-        let end_point = rotate_point((root_radius, 0.0), angle_offset_rads + tooth_angle - pitch_correction);
-        context.line_to(x + end_point.0, end_point.1);
+        let end_point = rotate_point(&Point { x: root_radius, y: 0.0 }, angle_offset_rads + tooth_angle - pitch_correction);
+        context.line_to(offset.x + end_point.x, end_point.y);
     });
     context.stroke();
 }
