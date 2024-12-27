@@ -16,5 +16,15 @@ wasm-bindgen = "0.2"
 
 
 [dependencies.web-sys]
-features = ["CanvasRenderingContext2d", "Document", "Element", "HtmlCanvasElement", "Window", "console"]
+features = [
+    "CanvasRenderingContext2d",
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "Window",
+    "console",
+    "CssStyleDeclaration",
+    "HtmlInputElement",
+    "EventTarget"
+]
 version = "0.3.76"
