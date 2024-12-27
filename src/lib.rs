@@ -76,6 +76,42 @@ fn create_sidebar(
     title.set_text_content(Some("Gear Designer"));
     sidebar.append_child(&title)?;
 
+    // add gear specs subtitle
+    let gear_specs_subtitle = document.create_element("h3")?;
+    gear_specs_subtitle
+        .set_attribute("style", "text-align: center; width: 100%;")
+        .unwrap();
+    gear_specs_subtitle.set_text_content(Some("Gear Specs"));
+    sidebar.append_child(&gear_specs_subtitle)?;
+
+    // label for gear module input
+    let gear_module_label = document.create_element("label")?;
+    gear_module_label
+        .set_attribute("for", "gear_module")
+        .unwrap();
+    gear_module_label.set_text_content(Some("Module:"));
+    gear_module_label
+        .set_attribute("style", "width: 80%; margin-left: 10%; margin-right: 10%;")
+        .unwrap();
+    sidebar.append_child(&gear_module_label)?;
+
+    // gear module input
+    let gear_module_input = document.create_element("input")?;
+    gear_module_input
+        .set_attribute("id", "gear_module")
+        .unwrap();
+    gear_module_input.set_attribute("type", "text").unwrap();
+    gear_module_input
+        .set_attribute("placeholder", "Enter gear module")
+        .unwrap();
+    gear_module_input
+        .set_attribute("value", &state.borrow().left_gear_spec.module.to_string())
+        .unwrap();
+    gear_module_input
+        .set_attribute("style", "width: 80%; margin-left: 10%; margin-right: 10%;")
+        .unwrap();
+    sidebar.append_child(&gear_module_input)?;
+
     // add left gear subtitle
     let left_gear_subtitle = document.create_element("h3")?;
     left_gear_subtitle
@@ -83,6 +119,17 @@ fn create_sidebar(
         .unwrap();
     left_gear_subtitle.set_text_content(Some("Left Gear"));
     sidebar.append_child(&left_gear_subtitle)?;
+
+    // label for left gear teeth input
+    let left_gear_teeth_label = document.create_element("label")?;
+    left_gear_teeth_label
+        .set_attribute("for", "left_gear_teeth")
+        .unwrap();
+    left_gear_teeth_label.set_text_content(Some("Teeth:"));
+    left_gear_teeth_label
+        .set_attribute("style", "width: 80%; margin-left: 10%; margin-right: 10%;")
+        .unwrap();
+    sidebar.append_child(&left_gear_teeth_label)?;
 
     // add text input for left gear teeth
     let left_gear_input = document.create_element("input")?;
@@ -109,6 +156,17 @@ fn create_sidebar(
     right_gear_subtitle.set_text_content(Some("Right Gear"));
     sidebar.append_child(&right_gear_subtitle)?;
 
+    // label for right gear teeth input
+    let right_gear_teeth_label = document.create_element("label")?;
+    right_gear_teeth_label
+        .set_attribute("for", "right_gear_teeth")
+        .unwrap();
+    right_gear_teeth_label.set_text_content(Some("Teeth:"));
+    right_gear_teeth_label
+        .set_attribute("style", "width: 80%; margin-left: 10%; margin-right: 10%;")
+        .unwrap();
+    sidebar.append_child(&right_gear_teeth_label)?;
+
     // add right gear input
     let right_gear_input = document.create_element("input")?;
     right_gear_input
@@ -126,6 +184,39 @@ fn create_sidebar(
         .unwrap();
     sidebar.append_child(&right_gear_input)?;
 
+    // add button for print
+    let print_button = document.create_element("button")?;
+    print_button.set_attribute("id", "print_button").unwrap();
+    print_button.set_text_content(Some("Print"));
+    print_button
+        .set_attribute(
+            "style",
+            "width: 100px; position: fixed; bottom: 20px; left: 20px;",
+        )
+        .unwrap();
+    sidebar.append_child(&print_button)?;
+
+    // update print button to create an alert with the current gear specs
+    let state_clone = state.clone();
+    let print_button_closure = Closure::wrap(Box::new(move || {
+        let gear_specs = state_clone.borrow();
+        let message = format!(
+            "Left Gear: {} teeth, {} module\nRight Gear: {} teeth, {} module",
+            gear_specs.left_gear_spec.teeth,
+            gear_specs.left_gear_spec.module,
+            gear_specs.right_gear_spec.teeth,
+            gear_specs.right_gear_spec.module
+        );
+        // Use web_sys to call alert
+        web_sys::window()
+            .unwrap()
+            .alert_with_message(&message)
+            .unwrap();
+    }) as Box<dyn Fn()>);
+    print_button
+        .add_event_listener_with_callback("click", print_button_closure.as_ref().unchecked_ref())?;
+    print_button_closure.forget();
+
     // Add all event listeners to update state when input changes
     let closure = Closure::wrap(Box::new(move || {
         // get left gear input
@@ -134,9 +225,18 @@ fn create_sidebar(
             .unwrap()
             .value();
         if let Ok(teeth) = value.parse::<u32>() {
-            // Borrow the state mutably to update it
             state.borrow_mut().left_gear_spec.teeth = teeth as f64; // Update the state
         }
+        // gear module input
+        let value = gear_module_input
+            .dyn_ref::<HtmlInputElement>()
+            .unwrap()
+            .value();
+        if let Ok(module) = value.parse::<f64>() {
+            state.borrow_mut().left_gear_spec.module = module;
+            state.borrow_mut().right_gear_spec.module = module;
+        }
+
         // get right gear input
         let value = right_gear_input
             .dyn_ref::<HtmlInputElement>()
