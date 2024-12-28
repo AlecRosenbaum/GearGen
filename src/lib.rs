@@ -99,7 +99,14 @@ fn print_gears(
     let width = dpi * 11.0 - margin;
     let height = dpi * 8.5 - margin;
 
-    redraw(canvas, context, width as u32, height as u32, page_state, dpi as u32);
+    redraw(
+        canvas,
+        context,
+        width as u32,
+        height as u32,
+        page_state,
+        dpi as u32,
+    );
 
     // export canvas to png
     let data_url = canvas.to_data_url()?;
@@ -157,12 +164,17 @@ fn create_sidebar(
     gear_diametric_pitch_input
         .set_attribute("id", "gear_diametric_pitch")
         .unwrap();
-    gear_diametric_pitch_input.set_attribute("type", "text").unwrap();
+    gear_diametric_pitch_input
+        .set_attribute("type", "text")
+        .unwrap();
     gear_diametric_pitch_input
         .set_attribute("placeholder", "Enter gear diametric pitch")
         .unwrap();
     gear_diametric_pitch_input
-        .set_attribute("value", &state.borrow().left_gear_spec.diametric_pitch.to_string())
+        .set_attribute(
+            "value",
+            &state.borrow().left_gear_spec.diametric_pitch.to_string(),
+        )
         .unwrap();
     gear_diametric_pitch_input
         .set_attribute("style", "width: 80%; margin-left: 10%; margin-right: 10%;")
@@ -256,7 +268,8 @@ fn create_sidebar(
     // update print button to create an alert with the current gear specs
     print_button
         .add_event_listener_with_callback("click", print_gears_closure.as_ref().unchecked_ref())?;
-    print_button.add_event_listener_with_callback("click", redraw_closure.as_ref().unchecked_ref())?;
+    print_button
+        .add_event_listener_with_callback("click", redraw_closure.as_ref().unchecked_ref())?;
 
     // Add all event listeners to update state when input changes
     let closure = Closure::wrap(Box::new(move || {
@@ -309,7 +322,7 @@ fn full_redraw(
         .set_attribute("style", "padding-left: 200px;")
         .unwrap();
     // 96 is a _reasonable_ default ppi, it's not exposed at all in browsers
-    redraw(canvas, context, width-200, height, page_state, 96);
+    redraw(canvas, context, width - 200, height, page_state, 96);
 }
 
 // enum left / right
@@ -609,7 +622,7 @@ fn draw_background(context: &web_sys::CanvasRenderingContext2d, width: u32, heig
 
     // Draw horizontal lines
     let height_offset = ((height as f64) / 2.0) as u32 % grid_spacing as u32;
-    for i in (height_offset..=height+height_offset).step_by(grid_spacing as usize) {
+    for i in (height_offset..=height + height_offset).step_by(grid_spacing as usize) {
         context.move_to(0.0, (i) as f64);
         context.line_to(width as f64, (i) as f64);
         context.stroke();
@@ -617,7 +630,7 @@ fn draw_background(context: &web_sys::CanvasRenderingContext2d, width: u32, heig
 
     // Draw vertical lines
     let width_offset = ((width as f64) / 2.0) as u32 % grid_spacing as u32;
-    for i in (width_offset..=width+width_offset).step_by(grid_spacing as usize) {
+    for i in (width_offset..=width + width_offset).step_by(grid_spacing as usize) {
         context.move_to(i as f64, 0.0);
         context.line_to(i as f64, height as f64);
         context.stroke();
