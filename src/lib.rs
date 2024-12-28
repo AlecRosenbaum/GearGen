@@ -19,14 +19,14 @@ fn start() -> Result<(), JsValue> {
     let page_state = PageState {
         left_gear_spec: GearSpecs {
             teeth: 50.0,
-            module: 15.0,
+            diametric_pitch: 12.0,
             tooth_angle: 20.0,
             clearance_mult: 0.167,
             backlash_mult: 0.05,
         },
         right_gear_spec: GearSpecs {
             teeth: 10.0,
-            module: 15.0,
+            diametric_pitch: 12.0,
             tooth_angle: 20.0,
             clearance_mult: 0.167,
             backlash_mult: 0.05,
@@ -99,7 +99,7 @@ fn print_gears(
     let width = dpi * 11.0 - margin;
     let height = dpi * 8.5 - margin;
 
-    redraw(canvas, context, width as u32, height as u32, page_state);
+    redraw(canvas, context, width as u32, height as u32, page_state, dpi as u32);
 
     // export canvas to png
     let data_url = canvas.to_data_url()?;
@@ -142,32 +142,32 @@ fn create_sidebar(
     sidebar.append_child(&gear_specs_subtitle)?;
 
     // label for gear module input
-    let gear_module_label = document.create_element("label")?;
-    gear_module_label
-        .set_attribute("for", "gear_module")
+    let gear_diametric_pitch_label = document.create_element("label")?;
+    gear_diametric_pitch_label
+        .set_attribute("for", "gear_diametric_pitch")
         .unwrap();
-    gear_module_label.set_text_content(Some("Module:"));
-    gear_module_label
+    gear_diametric_pitch_label.set_text_content(Some("Diametric Pitch:"));
+    gear_diametric_pitch_label
         .set_attribute("style", "width: 80%; margin-left: 10%; margin-right: 10%;")
         .unwrap();
-    sidebar.append_child(&gear_module_label)?;
+    sidebar.append_child(&gear_diametric_pitch_label)?;
 
     // gear module input
-    let gear_module_input = document.create_element("input")?;
-    gear_module_input
-        .set_attribute("id", "gear_module")
+    let gear_diametric_pitch_input = document.create_element("input")?;
+    gear_diametric_pitch_input
+        .set_attribute("id", "gear_diametric_pitch")
         .unwrap();
-    gear_module_input.set_attribute("type", "text").unwrap();
-    gear_module_input
-        .set_attribute("placeholder", "Enter gear module")
+    gear_diametric_pitch_input.set_attribute("type", "text").unwrap();
+    gear_diametric_pitch_input
+        .set_attribute("placeholder", "Enter gear diametric pitch")
         .unwrap();
-    gear_module_input
-        .set_attribute("value", &state.borrow().left_gear_spec.module.to_string())
+    gear_diametric_pitch_input
+        .set_attribute("value", &state.borrow().left_gear_spec.diametric_pitch.to_string())
         .unwrap();
-    gear_module_input
+    gear_diametric_pitch_input
         .set_attribute("style", "width: 80%; margin-left: 10%; margin-right: 10%;")
         .unwrap();
-    sidebar.append_child(&gear_module_input)?;
+    sidebar.append_child(&gear_diametric_pitch_input)?;
 
     // add left gear subtitle
     let left_gear_subtitle = document.create_element("h3")?;
@@ -268,14 +268,14 @@ fn create_sidebar(
         if let Ok(teeth) = value.parse::<u32>() {
             state.borrow_mut().left_gear_spec.teeth = teeth as f64; // Update the state
         }
-        // gear module input
-        let value = gear_module_input
+        // gear diametric pitch input
+        let value = gear_diametric_pitch_input
             .dyn_ref::<HtmlInputElement>()
             .unwrap()
             .value();
-        if let Ok(module) = value.parse::<f64>() {
-            state.borrow_mut().left_gear_spec.module = module;
-            state.borrow_mut().right_gear_spec.module = module;
+        if let Ok(diametric_pitch) = value.parse::<f64>() {
+            state.borrow_mut().left_gear_spec.diametric_pitch = diametric_pitch;
+            state.borrow_mut().right_gear_spec.diametric_pitch = diametric_pitch;
         }
 
         // get right gear input
@@ -303,12 +303,13 @@ fn full_redraw(
     context: &web_sys::CanvasRenderingContext2d,
     page_state: &PageState,
 ) {
-    let width = calculate_window_width();
-    let height = calculate_window_height();
+    let width = calculate_window_width_pixels();
+    let height = calculate_window_height_pixels();
     canvas
         .set_attribute("style", "padding-left: 200px;")
         .unwrap();
-    redraw(canvas, context, width-200, height, page_state);
+    // 96 is a _reasonable_ default ppi, it's not exposed at all in browsers
+    redraw(canvas, context, width-200, height, page_state, 96);
 }
 
 // enum left / right
@@ -345,7 +346,7 @@ struct PageState {
 // struct for gear specs
 struct GearSpecs {
     teeth: f64,
-    module: f64,
+    diametric_pitch: f64,
     tooth_angle: f64,
     clearance_mult: f64,
     backlash_mult: f64,
@@ -376,10 +377,11 @@ fn redraw(
     width: u32,
     height: u32,
     page_state: &PageState,
+    ppi: u32,
 ) {
     canvas.set_width(width);
     canvas.set_height(height);
-    draw_background(context, width, height);
+    draw_background(context, width, height, ppi);
 
     context
         .translate(width as f64 / 2.0, height as f64 / 2.0)
@@ -393,6 +395,7 @@ fn redraw(
         Gear::Left,
         &page_state.left_gear_spec,
         &debug_config,
+        ppi,
     );
 
     // Draw right gear (circle for now)
@@ -401,6 +404,7 @@ fn redraw(
         Gear::Right,
         &page_state.right_gear_spec,
         &debug_config,
+        ppi,
     );
 }
 
@@ -409,10 +413,11 @@ fn draw_gear(
     left_or_right: Gear,
     gear_spec: &GearSpecs,
     debug_config: &DebugConfig,
+    ppi: u32,
 ) {
     // Gear specifications
     let teeth = gear_spec.teeth;
-    let module = gear_spec.module;
+    let module = (1.0 / gear_spec.diametric_pitch) * ppi as f64;
     let tooth_angle = gear_spec.tooth_angle;
     let pressure_angle_rads = tooth_angle * f64::consts::PI / 180.0;
     let pitch_diameter = teeth * module;
@@ -564,7 +569,7 @@ fn draw_gear(
     context.stroke();
 }
 
-fn calculate_window_width() -> u32 {
+fn calculate_window_width_pixels() -> u32 {
     web_sys::window()
         .unwrap()
         .inner_width()
@@ -573,7 +578,7 @@ fn calculate_window_width() -> u32 {
         .unwrap() as u32
 }
 
-fn calculate_window_height() -> u32 {
+fn calculate_window_height_pixels() -> u32 {
     web_sys::window()
         .unwrap()
         .inner_height()
@@ -590,7 +595,7 @@ fn draw_circle(context: &web_sys::CanvasRenderingContext2d, x: f64, y: f64, radi
     context.stroke(); // Stroke the path after drawing
 }
 
-fn draw_background(context: &web_sys::CanvasRenderingContext2d, width: u32, height: u32) {
+fn draw_background(context: &web_sys::CanvasRenderingContext2d, width: u32, height: u32, ppi: u32) {
     context.clear_rect(0.0, 0.0, width as f64, height as f64);
     context.set_fill_style_str("white");
     context.fill_rect(0.0, 0.0, width as f64, height as f64);
@@ -599,40 +604,35 @@ fn draw_background(context: &web_sys::CanvasRenderingContext2d, width: u32, heig
     context.set_stroke_style_str("lightblue");
     context.set_line_width(1.0);
 
-    let grid_spacing = 150.0; // Set the spacing for the grid lines to 50 pixels
+    let grid_spacing = ppi as f64 / 2.0; // grid lines every half inch
     context.save(); // Save the current context state
 
     // Draw horizontal lines
-    let max_offset = max(width, height) * 2;
-    let neg_offset = -(max_offset as f64);
-
-    let start = (neg_offset) as i32;
-    let end = (max_offset as f64) as i32;
-    for i in (start..=end).step_by(grid_spacing as usize) {
-        context.move_to(neg_offset, i as f64);
-        context.line_to(max_offset as f64, i as f64);
+    let height_offset = ((height as f64) / 2.0) as u32 % grid_spacing as u32;
+    for i in (height_offset..=height+height_offset).step_by(grid_spacing as usize) {
+        context.move_to(0.0, (i) as f64);
+        context.line_to(width as f64, (i) as f64);
         context.stroke();
     }
 
     // Draw vertical lines
-    let start = (neg_offset) as i32;
-    let end = (max_offset as f64) as i32;
-    for i in (start..=end).step_by(grid_spacing as usize) {
-        context.move_to(i as f64, neg_offset);
-        context.line_to(i as f64, max_offset as f64);
+    let width_offset = ((width as f64) / 2.0) as u32 % grid_spacing as u32;
+    for i in (width_offset..=width+width_offset).step_by(grid_spacing as usize) {
+        context.move_to(i as f64, 0.0);
+        context.line_to(i as f64, height as f64);
         context.stroke();
     }
 
     context.restore(); // Restore the context to its original state
 
-    // Draw tiny crosshair at 0, 0 for debugging
+    // Draw tiny crosshair in the middle for debugging
     context.set_stroke_style_str("red");
     context.set_line_width(1.0);
     context.begin_path();
     let offset = 5.0;
-    context.move_to(0.0, -offset);
-    context.line_to(0.0, offset);
-    context.move_to(-offset, 0.0);
-    context.line_to(offset, 0.0);
+    context.move_to(width as f64 / 2.0, (height as f64 / 2.0) - offset);
+    context.line_to(width as f64 / 2.0, (height as f64 / 2.0) + offset);
+    context.move_to((width as f64 / 2.0) - offset, height as f64 / 2.0);
+    context.line_to((width as f64 / 2.0) + offset, height as f64 / 2.0);
     context.stroke();
 }
