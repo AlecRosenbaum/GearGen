@@ -13,6 +13,7 @@ fn start() -> Result<(), JsValue> {
         .create_element("canvas")?
         .dyn_into::<web_sys::HtmlCanvasElement>()?;
     document.body().unwrap().append_child(&canvas)?;
+    let canvas_rc = Rc::new(RefCell::new(canvas));
 
     // create page state
     let page_state = PageState {
@@ -34,18 +35,32 @@ fn start() -> Result<(), JsValue> {
     let page_state_rc = Rc::new(RefCell::new(page_state));
 
     // setup canvas drawing context + do initial redraw
-    let context = canvas
+    let context = canvas_rc
+        .borrow()
         .get_context("2d")
         .unwrap()
         .unwrap()
         .dyn_into::<web_sys::CanvasRenderingContext2d>()
         .unwrap();
-    full_redraw(&canvas, &context, &page_state_rc.borrow());
+    let context_rc = Rc::new(RefCell::new(context));
+
+    // do initial redraw
+    full_redraw(
+        &canvas_rc.borrow(),
+        &context_rc.borrow(),
+        &page_state_rc.borrow(),
+    );
 
     // Add event listener for window resize + redraw
     let page_state_rc_clone = page_state_rc.clone();
+    let canvas_rc_clone = canvas_rc.clone();
+    let context_rc_clone = context_rc.clone();
     let closure = Closure::wrap(Box::new(move || {
-        full_redraw(&canvas, &context, &page_state_rc_clone.borrow());
+        full_redraw(
+            &canvas_rc_clone.borrow(),
+            &context_rc_clone.borrow(),
+            &page_state_rc_clone.borrow(),
+        );
     }) as Box<dyn Fn()>);
     web_sys::window()
         .unwrap()
@@ -53,9 +68,53 @@ fn start() -> Result<(), JsValue> {
         .unwrap();
 
     // create left sidebar
-    let sidebar = create_sidebar(page_state_rc, &closure)?;
+    let page_state_rc_sidebar_clone = page_state_rc.clone();
+    let canvas_rc_sidebar = canvas_rc.clone();
+    let context_rc_sidebar = context_rc.clone();
+    let print_gears_closure = Closure::wrap(Box::new(move || {
+        print_gears(
+            &canvas_rc_sidebar.borrow(),
+            &context_rc_sidebar.borrow(),
+            &page_state_rc_sidebar_clone.borrow(),
+        )
+        .unwrap();
+    }) as Box<dyn Fn()>);
+    let sidebar = create_sidebar(page_state_rc, &closure, &print_gears_closure)?;
     document.body().unwrap().append_child(&sidebar)?;
+    print_gears_closure.forget();
     closure.forget();
+
+    Ok(())
+}
+
+fn print_gears(
+    canvas: &web_sys::HtmlCanvasElement,
+    context: &web_sys::CanvasRenderingContext2d,
+    page_state: &PageState,
+) -> Result<(), JsValue> {
+    let dpi = 300.0;
+    let margin = 0.25 * dpi;
+
+    // landscape paper size
+    let width = dpi * 11.0 - margin;
+    let height = dpi * 8.5 - margin;
+
+    console::log_2(&JsValue::from_str("width"), &JsValue::from_f64(width));
+    console::log_2(&JsValue::from_str("height"), &JsValue::from_f64(height));
+
+    redraw(canvas, context, width as u32, height as u32, page_state);
+
+    // export canvas to png
+    let data_url = canvas.to_data_url()?;
+
+    // download data url
+    let document = web_sys::window().unwrap().document().unwrap();
+    let a = document
+        .create_element("a")?
+        .dyn_into::<web_sys::HtmlAnchorElement>()?;
+    a.set_attribute("href", &data_url)?;
+    a.set_attribute("target", "_blank")?;
+    a.click();
 
     Ok(())
 }
@@ -63,6 +122,7 @@ fn start() -> Result<(), JsValue> {
 fn create_sidebar(
     state: Rc<RefCell<PageState>>,
     redraw_closure: &Closure<dyn Fn()>,
+    print_gears_closure: &Closure<dyn Fn()>,
 ) -> Result<web_sys::Element, JsValue> {
     let document = web_sys::window().unwrap().document().unwrap();
     let sidebar = document.create_element("div")?;
@@ -197,25 +257,8 @@ fn create_sidebar(
     sidebar.append_child(&print_button)?;
 
     // update print button to create an alert with the current gear specs
-    let state_clone = state.clone();
-    let print_button_closure = Closure::wrap(Box::new(move || {
-        let gear_specs = state_clone.borrow();
-        let message = format!(
-            "Left Gear: {} teeth, {} module\nRight Gear: {} teeth, {} module",
-            gear_specs.left_gear_spec.teeth,
-            gear_specs.left_gear_spec.module,
-            gear_specs.right_gear_spec.teeth,
-            gear_specs.right_gear_spec.module
-        );
-        // Use web_sys to call alert
-        web_sys::window()
-            .unwrap()
-            .alert_with_message(&message)
-            .unwrap();
-    }) as Box<dyn Fn()>);
     print_button
-        .add_event_listener_with_callback("click", print_button_closure.as_ref().unchecked_ref())?;
-    print_button_closure.forget();
+        .add_event_listener_with_callback("click", print_gears_closure.as_ref().unchecked_ref())?;
 
     // Add all event listeners to update state when input changes
     let closure = Closure::wrap(Box::new(move || {
@@ -267,12 +310,7 @@ fn full_redraw(
     canvas
         .set_attribute("style", "padding-left: 200px;")
         .unwrap();
-    canvas.set_width(width - 200);
-    canvas.set_height(height);
-    context
-        .translate(width as f64 / 2.0, height as f64 / 2.0)
-        .unwrap(); // now 0,0 is the center of the canvas.
-    redraw(context, width, height, page_state);
+    redraw(canvas, context, width-200, height, page_state);
 }
 
 // enum left / right
@@ -335,13 +373,19 @@ impl DebugConfig {
 }
 
 fn redraw(
+    canvas: &web_sys::HtmlCanvasElement,
     context: &web_sys::CanvasRenderingContext2d,
     width: u32,
     height: u32,
     page_state: &PageState,
 ) {
-    context.clear_rect(0.0, 0.0, width as f64, height as f64);
+    canvas.set_width(width);
+    canvas.set_height(height);
     draw_background(context, width, height);
+
+    context
+        .translate(width as f64 / 2.0, height as f64 / 2.0)
+        .unwrap(); // now 0,0 is the center of the canvas.
 
     let debug_config = DebugConfig::default();
 
@@ -549,6 +593,7 @@ fn draw_circle(context: &web_sys::CanvasRenderingContext2d, x: f64, y: f64, radi
 }
 
 fn draw_background(context: &web_sys::CanvasRenderingContext2d, width: u32, height: u32) {
+    context.clear_rect(0.0, 0.0, width as f64, height as f64);
     context.set_fill_style_str("white");
     context.fill_rect(0.0, 0.0, width as f64, height as f64);
 
@@ -556,11 +601,11 @@ fn draw_background(context: &web_sys::CanvasRenderingContext2d, width: u32, heig
     context.set_stroke_style_str("lightblue");
     context.set_line_width(1.0);
 
-    let grid_spacing = 10.0; // Set the spacing for the grid lines to 50 pixels
+    let grid_spacing = 150.0; // Set the spacing for the grid lines to 50 pixels
     context.save(); // Save the current context state
 
     // Draw horizontal lines
-    let max_offset = max(width, height);
+    let max_offset = max(width, height) * 2;
     let neg_offset = -(max_offset as f64);
 
     let start = (neg_offset) as i32;

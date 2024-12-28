@@ -25,6 +25,7 @@ features = [
     "console",
     "CssStyleDeclaration",
     "HtmlInputElement",
-    "EventTarget"
+    "EventTarget",
+    "HtmlAnchorElement",
 ]
 version = "0.3.76"
