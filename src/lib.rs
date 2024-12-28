@@ -95,12 +95,9 @@ fn print_gears(
     let dpi = 300.0;
     let margin = 0.25 * dpi;
 
-    // landscape paper size
+    // landscape letter paper size
     let width = dpi * 11.0 - margin;
     let height = dpi * 8.5 - margin;
-
-    console::log_2(&JsValue::from_str("width"), &JsValue::from_f64(width));
-    console::log_2(&JsValue::from_str("height"), &JsValue::from_f64(height));
 
     redraw(canvas, context, width as u32, height as u32, page_state);
 
@@ -259,6 +256,7 @@ fn create_sidebar(
     // update print button to create an alert with the current gear specs
     print_button
         .add_event_listener_with_callback("click", print_gears_closure.as_ref().unchecked_ref())?;
+    print_button.add_event_listener_with_callback("click", redraw_closure.as_ref().unchecked_ref())?;
 
     // Add all event listeners to update state when input changes
     let closure = Closure::wrap(Box::new(move || {
