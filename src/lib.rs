@@ -110,24 +110,20 @@ fn print_gears(
         dpi as u32,
     );
 
-    // export canvas to png
+    // export canvas to png. this could use blobs, but
+    // dealing with promises is a pain
     let data_url = canvas.to_data_url()?;
 
     console::log_1(&JsValue::from_str("Exporting to PDF"));
     let mut doc = printpdf::PdfDocument::new("Export");
-    // data url is a png, convert it to a raw image
     let image_bytes = base64::engine::general_purpose::STANDARD
         .decode(data_url.split(',').last().unwrap())
         .unwrap();
-    console::log_1(&JsValue::from_str("Decoding image"));
-
     let image = printpdf::RawImage::decode_from_bytes(&image_bytes).unwrap();
 
     // In the PDF, an image is an `XObject`, identified by a unique `ImageId`
-    console::log_1(&JsValue::from_str("Adding image to PDF"));
     let image_xobject_id = doc.add_image(&image);
 
-    console::log_1(&JsValue::from_str("Creating page"));
     let mut transform = printpdf::XObjectTransform::default();
     transform.rotate = Some(printpdf::XObjectRotation {
         angle_ccw_degrees: 90.0,
