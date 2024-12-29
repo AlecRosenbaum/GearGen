@@ -1,5 +1,7 @@
+use base64::engine::general_purpose;
+use base64::Engine;
+use printpdf;
 use std::cell::RefCell;
-use std::cmp::max;
 use std::f64;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
@@ -93,11 +95,11 @@ fn print_gears(
     page_state: &PageState,
 ) -> Result<(), JsValue> {
     let dpi = 300.0;
-    let margin = 0.25 * dpi;
+    let margin_inches = 0.25;
 
     // landscape letter paper size
-    let width = dpi * 11.0 - margin;
-    let height = dpi * 8.5 - margin;
+    let width = dpi * (11.0 - margin_inches);
+    let height = dpi * (8.5 - margin_inches);
 
     redraw(
         canvas,
@@ -111,12 +113,53 @@ fn print_gears(
     // export canvas to png
     let data_url = canvas.to_data_url()?;
 
-    // download data url
+    console::log_1(&JsValue::from_str("Exporting to PDF"));
+    let mut doc = printpdf::PdfDocument::new("Export");
+    // data url is a png, convert it to a raw image
+    let image_bytes = base64::engine::general_purpose::STANDARD
+        .decode(data_url.split(',').last().unwrap())
+        .unwrap();
+    console::log_1(&JsValue::from_str("Decoding image"));
+
+    let image = printpdf::RawImage::decode_from_bytes(&image_bytes).unwrap();
+
+    // In the PDF, an image is an `XObject`, identified by a unique `ImageId`
+    console::log_1(&JsValue::from_str("Adding image to PDF"));
+    let image_xobject_id = doc.add_image(&image);
+
+    console::log_1(&JsValue::from_str("Creating page"));
+    let mut transform = printpdf::XObjectTransform::default();
+    transform.rotate = Some(printpdf::XObjectRotation {
+        angle_ccw_degrees: 90.0,
+        rotation_center_x: printpdf::Px(0),
+        rotation_center_y: printpdf::Px(0),
+    });
+    transform.translate_x = Some(printpdf::Pt(72.0 * (8.5 - margin_inches / 2.0)));
+    transform.translate_y = Some(printpdf::Pt(72.0 * (margin_inches / 2.0)));
+    let page1_contents = vec![printpdf::Op::UseXObject {
+        id: image_xobject_id.clone(),
+        transform: transform,
+    }];
+
+    let page1 = printpdf::PdfPage::new(
+        printpdf::Mm(25.4 * 8.5),
+        printpdf::Mm(25.4 * 11.0),
+        page1_contents,
+    );
+    let pdf_bytes: Vec<u8> = doc
+        .with_pages(vec![page1])
+        .save(&printpdf::PdfSaveOptions::default());
+
+    // download pdf bytes
     let document = web_sys::window().unwrap().document().unwrap();
     let a = document
         .create_element("a")?
         .dyn_into::<web_sys::HtmlAnchorElement>()?;
-    a.set_attribute("href", &data_url)?;
+    a.set_attribute(
+        "href",
+        &("data:application/pdf;base64,".to_string()
+            + &general_purpose::STANDARD.encode(pdf_bytes)),
+    )?;
     a.set_attribute("target", "_blank")?;
     a.click();
 
