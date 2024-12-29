@@ -18,7 +18,7 @@ jobs:
 
       - name: Build Image and Run the build command
         run: |
-          docker compose run --build --rm app bash -c "npm install && NODE_ENV=production npm run build"
+          docker compose run --build --rm app bash -c 'npm install && PATH=$HOME/.cargo/bin:$PATH NODE_ENV=production npm run build'
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
