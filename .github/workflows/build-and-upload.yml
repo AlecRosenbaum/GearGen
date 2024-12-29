@@ -16,13 +16,9 @@ jobs:
       - name: Set up Docker
         uses: docker/setup-buildx-action@v1
 
-      - name: Build the Docker image
+      - name: Build Image and Run the build command
         run: |
-          docker compose build app
-
-      - name: Run build command
-        run: |
-          docker compose run --rm app bash -c "NODE_ENV=production npm run build"
+          docker compose run --build --rm app bash -c "npm install && NODE_ENV=production npm run build"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
